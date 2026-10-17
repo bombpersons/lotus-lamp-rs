@@ -1,21 +1,21 @@
-# rgb_light
+# lotus-lamp
 
 Rust API and CLI for ELK-BLEDOM / MELK Bluetooth LE LED strips (built against a
 `MELK-OA10` 5V USB WS2812B RGBIC strip). The USB lead on these strips is power only;
 all control is over BLE (service `fff0`, write `fff3`, notify `fff4`).
 
 ```rust
-let strip = rgb_light::LedStrip::connect_first(std::time::Duration::from_secs(10)).await?;
+let strip = lotus_lamp::LedStrip::connect_first(std::time::Duration::from_secs(10)).await?;
 strip.power(true).await?;
-strip.set_pattern(rgb_light::patterns::find("Magic Forward").unwrap().id).await?;
+strip.set_pattern(lotus_lamp::patterns::find("Magic Forward").unwrap().id).await?;
 strip.set_speed(60).await?;
 ```
 
 ```bash
-cargo run --bin rgb-light -- patterns
-cargo run --bin rgb-light -- pattern "magic forward"
-cargo run --bin rgb-light -- color ff8000
-cargo run --bin rgb-light -- mic spectrum-1
+cargo run --bin lotus-lamp -- patterns
+cargo run --bin lotus-lamp -- pattern "magic forward"
+cargo run --bin lotus-lamp -- color ff8000
+cargo run --bin lotus-lamp -- mic spectrum-1
 ```
 
 ## What works on the MELK-OA10
@@ -35,3 +35,7 @@ firmware, and it does not answer the app's status queries.
 Don't send command byte `0x87` (factory reset) or `0x24` (protect code) via `send_raw`.
 
 Command layouts were derived from the official Lotus Lamp X app; see `src/protocol.rs`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

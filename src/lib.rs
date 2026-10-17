@@ -1,15 +1,15 @@
 //! Control ELK-BLEDOM / MELK Bluetooth LE LED strips.
 //!
 //! ```no_run
-//! # async fn demo() -> Result<(), rgb_light::Error> {
-//! use rgb_light::{Effect, LedStrip};
+//! # async fn demo() -> Result<(), lotus_lamp::Error> {
+//! use lotus_lamp::{Effect, LedStrip};
 //! use std::time::Duration;
 //!
 //! let strip = LedStrip::connect_first(Duration::from_secs(10)).await?;
 //! strip.power(true).await?;
 //! strip.set_color(255, 80, 0).await?;
 //! strip.set_brightness(60).await?;
-//! strip.set_pattern(rgb_light::patterns::find("Magic Forward").unwrap().id).await?;
+//! strip.set_pattern(lotus_lamp::patterns::find("Magic Forward").unwrap().id).await?;
 //! strip.set_speed(30).await?;
 //! strip.disconnect().await?;
 //! # Ok(()) }
@@ -17,6 +17,7 @@
 
 pub mod patterns;
 pub mod protocol;
+pub mod serial;
 
 pub use btleplug::api::BDAddr;
 pub use patterns::{Pattern, PATTERNS};
@@ -39,6 +40,12 @@ pub enum Error {
     NotFound,
     #[error("device has no fff3 write characteristic; not an ELK-BLEDOM/MELK controller?")]
     MissingCharacteristic,
+    #[error("serial port error: {0}")]
+    Serial(#[from] serialport::Error),
+    #[error("i/o error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("timed out waiting for {0:?} from the Arduino; is the adalight firmware flashed?")]
+    Timeout(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

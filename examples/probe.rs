@@ -1,7 +1,7 @@
 //! Sends each hex frame given on the command line and prints any replies.
 //! Usage: cargo run --example probe -- 7e0737ffffff00ffef [...]
 use futures::StreamExt;
-use rgb_light::LedStrip;
+use lotus_lamp::LedStrip;
 use std::time::Duration;
 
 fn hex(b: &[u8]) -> String {

@@ -1,12 +1,16 @@
 [package]
-name = "rgb_light"
+name = "lotus-lamp"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "Rust API and CLI for LED strips controlled by the Lotus Lamp X app (ELK-BLEDOM / MELK BLE protocol)"
+repository = "https://github.com/bombpersons/lotus-lamp-rs"
 
 [dependencies]
 btleplug = "0.13.5"
 clap = { version = "4.6.7", features = ["derive"] }
 futures = "0.3.34"
+serialport = { version = "4.10.1", default-features = false }
 thiserror = "2.0.21"
 tokio = { version = "1.53.3", features = ["full"] }
 uuid = "1.28.0"

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use rgb_light::{patterns, BDAddr, Effect, LedStrip, MicEffect};
+use lotus_lamp::{patterns, BDAddr, Effect, LedStrip, MicEffect};
 use std::time::Duration;
 
 #[derive(Parser)]

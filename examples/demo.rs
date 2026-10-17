@@ -1,10 +1,10 @@
 //! Walks through every command so you can check them by eye.
-use rgb_light::{Effect, LedStrip};
+use lotus_lamp::{Effect, LedStrip};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::main]
-async fn main() -> Result<(), rgb_light::Error> {
+async fn main() -> Result<(), lotus_lamp::Error> {
     let strip = LedStrip::connect_first(Duration::from_secs(10)).await?;
     let step = |s: &str| println!("[demo] {s}");
 

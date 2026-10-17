@@ -7,7 +7,10 @@ edition = "2024"
 btleplug = "0.13.5"
 clap = { version = "4.6.7", features = ["derive"] }
 futures = "0.3.34"
-libdbus-sys = { version = "0.2.7", features = ["vendored"] }
 thiserror = "2.0.21"
 tokio = { version = "1.53.3", features = ["full"] }
 uuid = "1.28.0"
+
+# btleplug talks to BlueZ over D-Bus on Linux; vendor libdbus so no system dev package is needed.
+[target.'cfg(target_os = "linux")'.dependencies]
+libdbus-sys = { version = "0.2.7", features = ["vendored"] }

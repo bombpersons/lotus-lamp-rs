@@ -47,12 +47,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone)]
 pub struct FoundStrip {
     pub name: String,
+    /// All zeros on macOS, where CoreBluetooth hides MAC addresses; use [`FoundStrip::id`] there.
     pub address: BDAddr,
+    /// Platform device id: a UUID on macOS, the MAC on Windows, a BlueZ path on Linux.
+    pub id: String,
     pub rssi: Option<i16>,
     peripheral: Peripheral,
 }
 
 impl FoundStrip {
+    /// True if `s` is this strip's MAC address (any case) or platform id.
+    pub fn matches(&self, s: &str) -> bool {
+        self.id.eq_ignore_ascii_case(s) || self.address.to_string().eq_ignore_ascii_case(s)
+    }
+
     pub async fn connect(self) -> Result<LedStrip> {
         LedStrip::open(self.peripheral).await
     }
@@ -86,7 +94,7 @@ async fn scan(timeout: Duration, mut done: impl FnMut(&[FoundStrip]) -> bool) ->
             let Some(props) = p.properties().await? else { continue };
             let Some(name) = props.local_name else { continue };
             if is_strip_name(&name) {
-                found.push(FoundStrip { name: name.trim().to_owned(), address: p.address(), rssi: props.rssi, peripheral: p });
+                found.push(FoundStrip { name: name.trim().to_owned(), address: p.address(), id: p.id().to_string(), rssi: props.rssi, peripheral: p });
             }
         }
         if done(&found) || Instant::now() >= deadline {
@@ -114,6 +122,13 @@ impl LedStrip {
     pub async fn connect_address(address: BDAddr, timeout: Duration) -> Result<Self> {
         let found = scan(timeout, |f| f.iter().any(|s| s.address == address)).await?;
         found.into_iter().find(|s| s.address == address).ok_or(Error::NotFound)?.connect().await
+    }
+
+    /// Connects to the strip whose MAC address or platform id is `id`. Works on macOS, unlike
+    /// [`LedStrip::connect_address`].
+    pub async fn connect_id(id: &str, timeout: Duration) -> Result<Self> {
+        let found = scan(timeout, |f| f.iter().any(|s| s.matches(id))).await?;
+        found.into_iter().find(|s| s.matches(id)).ok_or(Error::NotFound)?.connect().await
     }
 
     async fn open(peripheral: Peripheral) -> Result<Self> {

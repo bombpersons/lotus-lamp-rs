@@ -17,7 +17,6 @@
 
 pub mod patterns;
 pub mod protocol;
-pub mod serial;
 
 pub use btleplug::api::BDAddr;
 pub use patterns::{Pattern, PATTERNS};
@@ -40,12 +39,6 @@ pub enum Error {
     NotFound,
     #[error("device has no fff3 write characteristic; not an ELK-BLEDOM/MELK controller?")]
     MissingCharacteristic,
-    #[error("serial port error: {0}")]
-    Serial(#[from] serialport::Error),
-    #[error("i/o error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("timed out waiting for {0:?} from the Arduino; is the adalight firmware flashed?")]
-    Timeout(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

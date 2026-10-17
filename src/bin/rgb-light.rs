@@ -5,9 +5,10 @@ use std::time::Duration;
 #[derive(Parser)]
 #[command(about = "Control an ELK-BLEDOM / MELK Bluetooth LED strip")]
 struct Cli {
-    /// Bluetooth address of the strip; defaults to the first one found.
+    /// Bluetooth address of the strip, or the device id `scan` prints on macOS; defaults to the
+    /// first one found.
     #[arg(short, long, global = true)]
-    address: Option<BDAddr>,
+    address: Option<String>,
     /// Scan timeout in seconds.
     #[arg(short, long, global = true, default_value_t = 10)]
     timeout: u64,
@@ -72,7 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match &cli.cmd {
         Cmd::Scan => {
             for s in LedStrip::discover(timeout).await? {
-                println!("{}  {}  rssi={:?}", s.address, s.name, s.rssi);
+                let addr = if s.address == BDAddr::default() { &s.id } else { &s.address.to_string() };
+                println!("{}  {}  rssi={:?}", addr, s.name, s.rssi);
             }
             return Ok(());
         }
@@ -98,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let strip = match cli.address {
-        Some(a) => LedStrip::connect_address(a, timeout).await?,
+        Some(a) => LedStrip::connect_id(&a, timeout).await?,
         None => LedStrip::connect_first(timeout).await?,
     };
 

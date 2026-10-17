@@ -1,0 +1,13 @@
+[package]
+name = "rgb_light"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+btleplug = "0.13.5"
+clap = { version = "4.6.7", features = ["derive"] }
+futures = "0.3.34"
+libdbus-sys = { version = "0.2.7", features = ["vendored"] }
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["full"] }
+uuid = "1.28.0"

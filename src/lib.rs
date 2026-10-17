@@ -9,19 +9,23 @@
 //! strip.power(true).await?;
 //! strip.set_color(255, 80, 0).await?;
 //! strip.set_brightness(60).await?;
-//! strip.set_effect(Effect::CrossfadeRgb).await?;
+//! strip.set_pattern(rgb_light::patterns::find("Magic Forward").unwrap().id).await?;
 //! strip.set_speed(30).await?;
 //! strip.disconnect().await?;
 //! # Ok(()) }
 //! ```
 
+pub mod patterns;
 pub mod protocol;
 
 pub use btleplug::api::BDAddr;
-pub use protocol::Effect;
+pub use patterns::{Pattern, PATTERNS};
+pub use protocol::{Effect, MicEffect, WireOrder};
 
 use btleplug::api::{Central, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType};
 use btleplug::platform::{Adapter, Manager, Peripheral};
+use futures::{Stream, StreamExt};
+use std::pin::Pin;
 use std::time::Duration;
 use tokio::time::{sleep, Instant};
 
@@ -58,6 +62,7 @@ impl FoundStrip {
 pub struct LedStrip {
     peripheral: Peripheral,
     write_char: Characteristic,
+    notify_char: Option<Characteristic>,
 }
 
 async fn default_adapter() -> Result<Adapter> {
@@ -112,16 +117,24 @@ impl LedStrip {
     }
 
     async fn open(peripheral: Peripheral) -> Result<Self> {
-        if !peripheral.is_connected().await? {
-            peripheral.connect().await?;
+        // BlueZ often aborts the first LE connection attempt to these controllers.
+        const ATTEMPTS: u32 = 4;
+        for attempt in 1..=ATTEMPTS {
+            if peripheral.is_connected().await? {
+                break;
+            }
+            match peripheral.connect().await {
+                Ok(()) => break,
+                Err(e) if attempt == ATTEMPTS => return Err(e.into()),
+                Err(_) => sleep(Duration::from_millis(500 * attempt as u64)).await,
+            }
         }
         peripheral.discover_services().await?;
-        let write_char = peripheral
-            .characteristics()
-            .into_iter()
-            .find(|c| c.uuid == protocol::WRITE_CHAR_UUID)
-            .ok_or(Error::MissingCharacteristic)?;
-        let strip = Self { peripheral, write_char };
+        let chars = peripheral.characteristics();
+        let find = |uuid| chars.iter().find(|c| c.uuid == uuid).cloned();
+        let write_char = find(protocol::WRITE_CHAR_UUID).ok_or(Error::MissingCharacteristic)?;
+        let notify_char = find(protocol::NOTIFY_CHAR_UUID);
+        let strip = Self { peripheral, write_char, notify_char };
         for cmd in protocol::MELK_INIT {
             strip.send_raw(cmd).await?;
         }
@@ -136,6 +149,20 @@ impl LedStrip {
     pub async fn send_raw(&self, bytes: &[u8]) -> Result<()> {
         self.peripheral.write(&self.write_char, bytes, WriteType::WithoutResponse).await?;
         Ok(())
+    }
+
+    /// Reads the fff3 characteristic, where the firmware leaves replies to query commands.
+    pub async fn read_raw(&self) -> Result<Vec<u8>> {
+        Ok(self.peripheral.read(&self.write_char).await?)
+    }
+
+    /// Subscribes to fff4 and yields each notification payload.
+    pub async fn notifications(&self) -> Result<Pin<Box<dyn Stream<Item = Vec<u8>> + Send>>> {
+        if let Some(c) = &self.notify_char {
+            self.peripheral.subscribe(c).await?;
+        }
+        let uuid = protocol::NOTIFY_CHAR_UUID;
+        Ok(self.peripheral.notifications().await?.filter_map(move |n| async move { (n.uuid == uuid).then_some(n.value) }).boxed())
     }
 
     pub async fn power(&self, on: bool) -> Result<()> {
@@ -160,7 +187,32 @@ impl LedStrip {
         self.send_raw(&protocol::effect_raw(mode)).await
     }
 
-    /// Effect speed, 0..=100.
+    /// Starts an RGBIC pattern (multiple colours moving along the strip). See [`PATTERNS`].
+    pub async fn set_pattern(&self, id: u8) -> Result<()> {
+        self.send_raw(&protocol::pattern(id)).await
+    }
+
+    /// Starts a sound-reactive mode using the controller's built-in microphone.
+    pub async fn set_mic_effect(&self, effect: MicEffect) -> Result<()> {
+        self.send_raw(&protocol::mic_effect(effect)).await
+    }
+
+    /// Microphone sensitivity, 0..=100.
+    pub async fn set_mic_sensitivity(&self, percent: u8) -> Result<()> {
+        self.send_raw(&protocol::mic_sensitivity(percent)).await
+    }
+
+    /// Saved to the controller's flash; only change this if colours come out swapped.
+    pub async fn set_wire_order(&self, order: WireOrder) -> Result<()> {
+        self.send_raw(&protocol::wire_order(order)).await
+    }
+
+    /// Saved to the controller's flash; sets how many LEDs patterns span.
+    pub async fn set_pixel_count(&self, count: u16) -> Result<()> {
+        self.send_raw(&protocol::pixel_count(count)).await
+    }
+
+    /// Pattern and effect speed, 0..=100.
     pub async fn set_speed(&self, percent: u8) -> Result<()> {
         self.send_raw(&protocol::speed(percent)).await
     }

@@ -116,6 +116,86 @@ pub fn white(warm: u8, cold: u8) -> Frame {
     frame(0x05, [0x02, warm.min(100), cold.min(100), 0, 0])
 }
 
+/// The official app's framing: `7E 07 <cmd> <params, unused slots FF> 00 EF`.
+fn app_frame(cmd: u8, params: &[u8]) -> Frame {
+    let mut f = [0x7E, 0x07, cmd, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xEF];
+    f[3..3 + params.len()].copy_from_slice(params);
+    f
+}
+
+/// RGBIC ("symphony") pattern, by id from [`crate::patterns::PATTERNS`].
+pub fn pattern(id: u8) -> Frame {
+    app_frame(0x03, &[id, 0x06])
+}
+
+/// Sound-reactive modes driven by the controller's own microphone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum MicEffect {
+    Energy1 = 0x80,
+    Rhythm1 = 0x81,
+    Spectrum1 = 0x82,
+    Scroll1 = 0x83,
+    Energy2 = 0x84,
+    Rhythm2 = 0x85,
+    Spectrum2 = 0x86,
+    Scroll2 = 0x87,
+}
+
+impl MicEffect {
+    pub const ALL: [MicEffect; 8] = [
+        MicEffect::Energy1,
+        MicEffect::Rhythm1,
+        MicEffect::Spectrum1,
+        MicEffect::Scroll1,
+        MicEffect::Energy2,
+        MicEffect::Rhythm2,
+        MicEffect::Spectrum2,
+        MicEffect::Scroll2,
+    ];
+}
+
+pub fn mic_effect(effect: MicEffect) -> Frame {
+    app_frame(0x03, &[effect as u8, 0x04])
+}
+
+/// Microphone sensitivity, clamped to 0..=100.
+pub fn mic_sensitivity(percent: u8) -> Frame {
+    app_frame(0x06, &[percent.min(100)])
+}
+
+/// Order the strip's chips expect colour bytes in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireOrder {
+    Rgb,
+    Rbg,
+    Grb,
+    Gbr,
+    Brg,
+    Bgr,
+}
+
+/// Saved in the controller's flash. Untested on hardware.
+pub fn wire_order(order: WireOrder) -> Frame {
+    let (r, g, b) = (1, 2, 3);
+    let seq = match order {
+        WireOrder::Rgb => [r, g, b],
+        WireOrder::Rbg => [r, b, g],
+        WireOrder::Grb => [g, r, b],
+        WireOrder::Gbr => [g, b, r],
+        WireOrder::Brg => [b, r, g],
+        WireOrder::Bgr => [b, g, r],
+    };
+    app_frame(0x81, &seq)
+}
+
+/// Number of LEDs on the strip (the app allows 10..=1000). Saved in the controller's flash.
+/// Untested on hardware.
+pub fn pixel_count(count: u16) -> Frame {
+    let [lo, hi] = count.to_le_bytes();
+    app_frame(0x21, &[lo, hi, 0x00])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,6 +215,16 @@ mod tests {
         assert_eq!(hex(brightness(50)), "7e00013200000000ef");
         assert_eq!(hex(effect(Effect::Jump7Colors)), "7e00038803000000ef");
         assert_eq!(hex(speed(10)), "7e00020a00000000ef");
+        assert_eq!(hex(pattern(0x01)), "7e07030106ffff00ef");
+        assert_eq!(hex(mic_effect(MicEffect::Spectrum1)), "7e07038204ffff00ef");
+        assert_eq!(hex(mic_sensitivity(100)), "7e070664ffffff00ef");
+    }
+
+    // Byte layouts taken from the official app, not yet seen working on hardware.
+    #[test]
+    fn app_derived_frames() {
+        assert_eq!(hex(wire_order(WireOrder::Grb)), "7e0781020103ff00ef");
+        assert_eq!(hex(pixel_count(300)), "7e07212c0100ff00ef");
     }
 
     #[test]
